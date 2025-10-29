@@ -17,7 +17,22 @@ AgentBox is a simplified replacement for ClaudeBox. The user was maintaining pat
 
 2. **Hash-Based Naming**: Container names use SHA256 hash of project directory path (first 12 chars) to ensure uniqueness and avoid conflicts.
 
-3. **Volume Strategy**: Claude CLI config uses Docker named volumes (not bind mounts) to avoid permission issues. Initialized from `~/.claude` if it exists.
+3. **Multi-Instance Support**: Automatically detects running containers and appends numeric suffixes (`-2`, `-3`, etc.) to enable multiple simultaneous Claude instances for the same project. Uses `get_next_instance()` to find the next available instance number by checking `docker ps` for existing containers.
+
+4. **Volume Strategy**:
+   - **Shared Across Instances**:
+     * `/workspace` → Host bind mount (project directory)
+     * `/home/claude/.ssh` → Host bind mount (`~/.agentbox/ssh/`)
+     * `/home/claude/.gitconfig` → Host bind mount (read-only)
+     * `/home/claude/.claude` → Docker volume `agentbox-claude-<hash>` (authentication copied from `~/.claude` on first run)
+   - **Isolated Per Instance**:
+     * `/home/claude/.npm` → Host bind mount (`~/.cache/agentbox/{container-name}/npm`)
+     * `/home/claude/.cache/pip` → Host bind mount (`~/.cache/agentbox/{container-name}/pip`)
+     * `/home/claude/.m2` → Host bind mount (`~/.cache/agentbox/{container-name}/maven`)
+     * `/home/claude/.gradle` → Host bind mount (`~/.cache/agentbox/{container-name}/gradle`)
+     * Shell history files → Host bind mount (`~/.agentbox/projects/{container-name}/history/`)
+   - All volumes use Docker named volumes or bind mounts. Claude volume initialized from `~/.claude` if it exists.
+   - **Note**: Only Claude uses a Docker volume (one per project). Isolated per-instance resources use host bind mounts, so you'll see multiple directories like `~/.cache/agentbox/agentbox-<hash>-2`, `agentbox-<hash>-3`, etc., but only one `agentbox-claude-<hash>` Docker volume.
 
 4. **SSH Implementation**: Currently mounts `~/.agentbox/ssh/` directory directly (not true SSH agent forwarding). Future improvement could use Docker's `--ssh` flag for better security.
 
